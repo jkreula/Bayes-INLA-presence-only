@@ -1,3 +1,5 @@
+### © Juha Kreula
+
 require(sf)
 require(tidyr) # for drop_na
 require(raster) # for handling raster objects
