@@ -1,3 +1,5 @@
+### © Juha Kreula
+
 #Clear workspace
 rm(list=ls())
 # Load libraries

@@ -1,3 +1,5 @@
+### © Juha Kreula
+
 ### Load libraries
 library(raster)
 library(sf)
@@ -15,8 +17,7 @@ library(spatstat) # for nearest.pixel
 library(maptools) # for as.im.RasterLayer()
 library(fields) # for image.plot
 
-setwd("~/Dropbox/Oxford-MSc-Stat-Sci/Dissertation/Code/Code for TVERC")
-# Choose rare species to be investigated
+# Choose rare species to be investigated. Use Latin name.
 rare.investigate <- "Molinia caerulea"
 
 ###################################################################################
