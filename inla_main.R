@@ -62,6 +62,7 @@ bg5 <- "Cock's-foot"
 bg6 <- "Rough Meadow-grass"
 bg7 <- "Hawthorn"
 
+# Vector of background species
 bg_species <- c(bg1,
                 bg2,
                 bg3,
@@ -71,6 +72,7 @@ bg_species <- c(bg1,
                 bg7
 )
 
+# Data frame of background species
 bg_data.habitats <- df.plant_data[df.plant_data$CommonName %in% bg_species,]
 
 # Add mark to bg point data
@@ -154,7 +156,7 @@ Elevation.sp <- as.numeric(data.bg_and_rare$Elevation)
 Geology.sp <- as.factor(data.bg_and_rare$Geology)
 Slope.sp <- as.numeric(data.bg_and_rare$Slope)
 
-# Standardise
+# Standardise continuous covariates
 Aspect.sp.std <- standardise_covariates(Aspect.sp)
 Elevation.sp.std <- standardise_covariates(Elevation.sp)
 Slope.sp.std <- standardise_covariates(Slope.sp)
@@ -252,10 +254,12 @@ CapStr <- function(y) {
   paste(toupper(substring(c, 1,1)), substring(c, 2),
         sep="", collapse=" ")
 }
+# Get taxon name in TitleCase
 rare.species.taxonName <- gsub(" ", "", CapStr(rare.investigate))
 date <- Sys.Date()
 
+# Save filename
 save.filename <- paste0("inla_model1_results_",rare.species.taxonName,
                         "_",date,".RData")
-
+# Save workspace
 save.image(file = save.filename)
