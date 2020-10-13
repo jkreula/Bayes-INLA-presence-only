@@ -154,6 +154,20 @@ Elevation.sp <- as.numeric(data.bg_and_rare$Elevation)
 Geology.sp <- as.factor(data.bg_and_rare$Geology)
 Slope.sp <- as.numeric(data.bg_and_rare$Slope)
 
+# Standardise
+Aspect.sp.std <- standardise_covariates(Aspect.sp)
+Elevation.sp.std <- standardise_covariates(Elevation.sp)
+Slope.sp.std <- standardise_covariates(Slope.sp)
+
+# Extract means and stds for standardising predictions
+Aspect.mean <- mean(Aspect.sp)
+Elevation.mean <- mean(Elevation.sp)
+Slope.mean <- mean(Slope.sp)
+
+Aspect.sd <- sd(Aspect.sp)
+Elevation.sd <- sd(Elevation.sp)
+Slope.sd <- sd(Slope.sp)
+
 ########## Prediction at mesh nodes
 
 source("create_mesh_prediction_df.R")
@@ -165,26 +179,10 @@ Elevation.pred <- as.numeric(rep(df.pred.xy$Elevation,mesh.t$n))
 Geology.pred <- as.factor(rep(df.pred.xy$Geology,mesh.t$n))
 Slope.pred <- as.numeric(rep(df.pred.xy$Slope,mesh.t$n))
 
-# Group with obs location values
-Aspect.tot <- c(Aspect.sp,Aspect.pred)
-Elevation.tot <- c(Elevation.sp,Elevation.pred)
-Slope.tot <- c(Slope.sp,Slope.pred)
-
-# Standardise
-Aspect.tot.std <- standardise_covariates(Aspect.tot)
-Elevation.tot.std <- standardise_covariates(Elevation.tot)
-Slope.tot.std <- standardise_covariates(Slope.tot)
-
-# Extract values at obs locations
-Aspect.sp.std <- Aspect.tot.std[1:length(Aspect.sp)]
-Elevation.sp.std <- Elevation.tot.std[1:length(Elevation.sp)]
-Slope.sp.std <- Slope.tot.std[1:length(Slope.sp)]
-
-# Extract values at mesh nodes
-Aspect.pred.std <- Aspect.tot.std[(length(Aspect.sp)+1):length(Aspect.tot.std)]
-Elevation.pred.std <- Elevation.tot.std[(length(Elevation.sp)+1):
-                                          length(Elevation.tot.std)]
-Slope.pred.std <- Slope.tot.std[(length(Slope.sp)+1):length(Slope.tot.std)]
+# Standardise at mesh nodes
+Aspect.pred.std <- standardise_covariates(Aspect.pred,Aspect.mean,Aspect.sd)
+Elevation.pred.std <- standardise_covariates(Elevation.pred,Elevation.mean,Elevation.sd)
+Slope.pred.std <- standardise_covariates(Slope.pred,Slope.mean,Slope.sd)
 
 # Create estimation stack
 stack.est <- inla.stack(
