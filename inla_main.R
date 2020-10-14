@@ -17,22 +17,8 @@ library(spatstat) # for nearest.pixel
 library(maptools) # for as.im.RasterLayer()
 library(fields) # for image.plot
 
-# Choose rare species to be investigated. Use Latin name.
-rare.investigate <- "Molinia caerulea"
 
-###################################################################################
-################################## INLA  ##########################################
-###################################################################################
-if(!require(INLA)) {
-  install.packages("INLA", 
-                   repos=c(getOption("repos"), 
-                           INLA="https://inla.r-inla-download.org/R/testing"), 
-                   dep=TRUE)
-  library(INLA)
-}
-
-#Needed on grey01.cpu
-inla.setOption(mkl=TRUE)
+########## Data load and focus species ######################
 
 # Load Oxon map
 load("Oxon_map.RData")
@@ -40,7 +26,7 @@ load("Oxon_map.RData")
 # Load species data with covariates
 load("data_plant_locs_all_covariates.Rda")
 
-# Choose columns to keep
+# Choose columns to keep in data
 df.plant_data <- data_plant_locs.habitats[,c("CommonName",
                                              "TaxonName",
                                              "RecYear",
@@ -52,6 +38,16 @@ df.plant_data <- data_plant_locs.habitats[,c("CommonName",
                                              "Elevation",
                                              "Geology",
                                              "Slope")]
+
+
+
+# Choose rare species to be investigated. Use Latin name.
+rare.investigate <- "Molinia caerulea"
+stopifnot(rare.investigate %in% unique(df.plant_data$TaxonName))
+
+
+
+########### Background species #######################
 
 # Choose background species
 bg1 <- "Creeping Buttercup"
@@ -90,51 +86,65 @@ data.bg_and_rare$EastingKm <- data.bg_and_rare$Easting/1000
 data.bg_and_rare$NorthingKm <- data.bg_and_rare$Northing/1000
 sp_locs <- cbind(data.bg_and_rare$EastingKm, data.bg_and_rare$NorthingKm)
 
-# Change Oxfordshire coordinates from m to km
-coords <- oxon_boundary_coords / 1000
+###################################################################################
+################################## INLA  ##########################################
+###################################################################################
+if(!require(INLA)) {
+  install.packages("INLA", 
+                   repos=c(getOption("repos"), 
+                           INLA="https://inla.r-inla-download.org/R/testing"), 
+                   dep=TRUE)
+  library(INLA)
+}
 
-# Create a non-convex hull around Oxfordshire
-bnd <- inla.nonconvex.hull(coords)
-# Create a spatial triangular mesh for finite element method
-mesh.s <- inla.mesh.2d(loc = sp_locs,
-                       boundary = bnd,
-                       offset = c(2,5),
-                       # Max triangle edge length in the interior is 5km, 
-                       # and in the exterior 20km
-                       max.edge = c(5, 20), 
-                       # smallest triangle edge length is 1km
-                       cutoff = 1) 
+#Needed on grey01.cpu
+inla.setOption(mkl=TRUE)
 
-# Use coarser time grid for computational efficiency
-tstep <- 8 # Set time step to 8 years
-(time_knots <- sort(seq(from = 1970, 
-                        to = max(df.plant_data$RecYear)+2*tstep, # add 2 forecasts
-                        by = tstep)))
-# Number of time knots
-(k <- length(time_knots))
+# Function to create an extended triangular mesh around Oxfordshire
+create_spatial_mesh <- function(domain_boundary,locations,offset,max_edge,cutoff) {
+  # Change Oxfordshire coordinates from m to km
+  coords <- domain_boundary / 1000
+  
+  # Create a non-convex hull around Oxfordshire
+  bnd <- inla.nonconvex.hull(coords)
+  # Create a spatial triangular mesh for finite element method
+  mesh.s <- inla.mesh.2d(loc = locations,
+                         boundary = bnd,
+                         offset = c(2,5),
+                         # Max triangle edge length in the interior is 5km, 
+                         # and in the exterior 20km
+                         max.edge = c(5, 20), 
+                         # smallest triangle edge length is 1km
+                         cutoff = 1)
+  return(mesh.s)
+}
+
+# Spatial mesh
+mesh.s <- create_spatial_mesh(oxon_boundary_coords,sp_locs,offset=c(2,5),max_edge=c(5, 20),cutoff=1)
+
+# Function to create 1D temporal mesh (use coarser time grid for computational efficiency)
+create_temporal_mesh <- function(start,finish,time_step,num_forecast_points=0) {
+  # Add forecast points to create last time knot
+  last <- finish + num_forecast_points*time_step
+  
+  time_knots <- sort(seq(from = start, 
+                         to = last,
+                         by = time_step))
+  # Create mesh
+  mesh.t <- inla.mesh.1d(time_knots)
+  
+  return(mesh.t)
+}
+
 # Create a 1D temporal mesh
-mesh.t <- inla.mesh.1d(time_knots)
-
-# PC prior for Matern field
-range <- 10
-range.alpha <- 0.1
-sigma <- 0.35
-sigma.alpha <- 0.05
-spde <- inla.spde2.pcmatern(mesh = mesh.s,
-                            prior.range = c(range, range.alpha),
-                            prior.sigma = c(sigma, sigma.alpha))
+mesh.t <- create_temporal_mesh(start=1970,
+                               finish=max(df.plant_data$RecYear),
+                               time_step=8,
+                               num_forecast_points=2)
+# Number of time knots
+(k <- mesh.t$n)
 
 #################### Create stacks ##############################
-
-# Function to standardise covariates
-standardise_covariates <- function(x, mean = NULL, sd = NULL) {
-  if (is.null(mean) || is.null(sd)) {
-    x.std <- (x - mean(x)) / sd(x)
-  } else {
-    x.std <- (x - mean)/sd
-  }
-  return(x.std)
-}
 
 # Estimation projector matrix
 Ast <- inla.spde.make.A(mesh = mesh.s,
@@ -155,6 +165,16 @@ Aspect.sp <- as.numeric(data.bg_and_rare$Aspect)
 Elevation.sp <- as.numeric(data.bg_and_rare$Elevation)
 Geology.sp <- as.factor(data.bg_and_rare$Geology)
 Slope.sp <- as.numeric(data.bg_and_rare$Slope)
+
+# Function to standardise covariates
+standardise_covariates <- function(x, mean = NULL, sd = NULL) {
+  if (is.null(mean) || is.null(sd)) {
+    x.std <- (x - mean(x)) / sd(x)
+  } else {
+    x.std <- (x - mean)/sd
+  }
+  return(x.std)
+}
 
 # Standardise continuous covariates
 Aspect.sp.std <- standardise_covariates(Aspect.sp)
@@ -217,12 +237,25 @@ stack.pred <- inla.stack(data = list(mark=NA),
 # Join stacks together
 join.stack <- inla.stack(stack.est,stack.pred)
 
+############ Priors #############################
+
 # PC prior for AR(1) process, base model rho = 1
 pcrho <- list(prior = 'pc.cor1', param = c(0,0.9))
+
+# Log-gamma prior for log precision for categoricals
 prec.init <- 5e-5
 prec.prior <- list(prec = list(prior = "loggamma", 
                                param = c(1, prec.init), 
                                fixed = FALSE)) 
+
+# PC prior for Matern field on spatial mesh
+range <- 10
+range.alpha <- 0.1
+sigma <- 0.35
+sigma.alpha <- 0.05
+spde <- inla.spde2.pcmatern(mesh = mesh.s,
+                            prior.range = c(range, range.alpha),
+                            prior.sigma = c(sigma, sigma.alpha))
 
 # Model formula
 formula.mark <- mark ~ 0 + Intercept + 
