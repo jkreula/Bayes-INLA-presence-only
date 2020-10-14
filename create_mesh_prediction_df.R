@@ -1,5 +1,4 @@
 ### © Juha Kreula
-
 require(sf)
 require(tidyr) # for drop_na
 require(raster) # for handling raster objects
@@ -22,10 +21,14 @@ if (load.covar.df) {
   elevation.file <- paste0(folder,"elevation.tif")
   geology.file <- paste0(folder,"geology.tif")
   slope.file <- paste0(folder,"slope.tif")
+  
+  # Find box around Oxforshire
   oxon.extent <- extent(c(Oxon_limits$xmin,
                           Oxon_limits$xmax,
                           Oxon_limits$ymin,
                           Oxon_limits$ymax))
+  
+  # Create rasters and crop to Oxfordshire
   data.aspect <- raster(aspect.file)
   data.aspect.oxon <- crop(data.aspect, oxon.extent)
   data.elevation <- raster(elevation.file)
@@ -34,6 +37,7 @@ if (load.covar.df) {
   data.geology.oxon <- crop(data.geology, oxon.extent)
   data.slope <- raster(slope.file)
   data.slope.oxon <- crop(data.slope, oxon.extent)
+  
   # Save for future
   save(data_habitats,
        data.aspect.oxon,
@@ -42,7 +46,6 @@ if (load.covar.df) {
        data.slope.oxon,
        file = "all_covariate_data.RData")
 }
-
 
 # Use mesh nodes as prediction points
 pred.xy <- st_as_sf(data.frame(x = (mesh.s$loc[,1]*1000), y = (mesh.s$loc[,2])*1000),  
@@ -57,7 +60,6 @@ df.predxy.habit.intersection <- as.data.frame(predxy.habit.intersection)
 colnames(df.predxy.habit.intersection) <- c("HabitatIndex","PointIndex") 
 
 # Placeholders for new columns or features for habitat in data_plant_locs
-
 pred.xy$HabitatTypeLong <- rep(NA, dim(pred.xy)[1])
 
 pred.xy$HabitatTypeLong[df.predxy.habit.intersection$PointIndex] = 
@@ -70,7 +72,7 @@ pred.xy$HabitatTypeShort <- sapply(pred.xy$HabitatTypeLong,
 pred.xy.HabitatInfo <- pred.xy[!is.na(pred.xy$HabitatTypeShort),]
 pred.xy.NoHabitatInfo <- pred.xy[is.na(pred.xy$HabitatTypeShort),]
 
-
+# Function to create a data frame for predictions
 create_pred_df <- function(pred) {
   result <- data.frame(CommonName = NA, 
                        TaxonName = NA, 
@@ -87,9 +89,9 @@ create_pred_df <- function(pred) {
   return (result)
 }
 
-
-df.pred.xy.HabitatInfo <- create_pred_df(pred.xy.HabitatInfo)
-df.pred.xy.NoHabitatInfo <- create_pred_df(pred.xy.NoHabitatInfo)
+# Create data frames
+df.pred.xy.HabitatInfo <- create_pred_df(pred.xy.HabitatInfo) # With habitat info
+df.pred.xy.NoHabitatInfo <- create_pred_df(pred.xy.NoHabitatInfo) # With missing habitat info
 
 df.plant_data$IS_DATA <- TRUE
 df.all.HabitatInfo <- rbind(df.plant_data,df.pred.xy.HabitatInfo)
@@ -99,6 +101,7 @@ euclidean_dist <- function(x1,y1,x2,y2) {
   return(dist)
 }
 
+# Function to find missing habitats for imputation
 find.imputed.habitats <- function(nohabitat.locs,df.habitats)
 {
   imputed.habitats <- apply(nohabitat.locs, 1, function(row) {
@@ -116,13 +119,16 @@ find.imputed.habitats <- function(nohabitat.locs,df.habitats)
 nohabitat.locs <- cbind(df.pred.xy.NoHabitatInfo$Easting,
                         df.pred.xy.NoHabitatInfo$Northing)
 
-
+# Find habitats closest to points with missing habitats
 imputed.habitats <- find.imputed.habitats(nohabitat.locs,
                                           df.all.HabitatInfo)
 
+# New df for imputed habitats
 df.pred.xy.ImputedHabitatInfo <- df.pred.xy.NoHabitatInfo
+# Impute habitats
 df.pred.xy.ImputedHabitatInfo$HabitatTypeShort <- imputed.habitats
 
+# Combine data frames into a single prediction data frame, No missing habitats.
 df.pred.xy <- rbind(df.pred.xy.HabitatInfo,df.pred.xy.ImputedHabitatInfo)
 
 head(df.pred.xy)
