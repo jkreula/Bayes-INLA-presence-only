@@ -282,13 +282,13 @@ res.mark <- inla(formula.mark,
 
 # Auxiliary function to modify taxon name
 # Molinia caerulea -> MoliniaCaerulea for saving results
-CapStr <- function(y) {
+titleCase <- function(y) {
   c <- strsplit(y, " ")[[1]]
   paste(toupper(substring(c, 1,1)), substring(c, 2),
         sep="", collapse=" ")
 }
 # Get taxon name in TitleCase
-rare.species.taxonName <- gsub(" ", "", CapStr(rare.investigate))
+rare.species.taxonName <- gsub(" ", "", titleCase(rare.investigate))
 date <- Sys.Date()
 
 # Save filename
